@@ -1,4 +1,77 @@
 const path = require('path');
+
+// ===== 自我修復：如果缺少 src/ 資料夾，就從同目錄的 lifehub-prototype.zip 自動解壓縮 =====
+// (常見情況：透過網頁手動上傳到 GitHub 時，瀏覽器沒有把子資料夾一起送出。)
+// 純粹用 Node.js 內建模組實作 (fs / zlib)，不依賴任何外部套件或系統指令，
+// 符合這個專案「零外部依賴」的原則。整段邏輯內嵌在 server.js 裡，
+// 這樣只需要「這一個檔案 + 一個 zip」兩個東西，不用額外再上傳別的腳本檔。
+(function ensureExtracted(rootDir) {
+  const fs = require('fs');
+  const zlib = require('zlib');
+  const srcDir = path.join(rootDir, 'src');
+  if (fs.existsSync(srcDir)) return; // 已經是完整的專案，不用做任何事
+
+  function findZipFile() {
+    const preferred = path.join(rootDir, 'lifehub-prototype.zip');
+    if (fs.existsSync(preferred)) return preferred;
+    const zipName = fs.readdirSync(rootDir).find((name) => name.toLowerCase().endsWith('.zip'));
+    return zipName ? path.join(rootDir, zipName) : null;
+  }
+
+  function readEocd(buf) {
+    const SIG = 0x06054b50;
+    for (let i = buf.length - 22; i >= 0; i--) {
+      if (buf.readUInt32LE(i) === SIG) {
+        return { entryCount: buf.readUInt16LE(i + 10), cdOffset: buf.readUInt32LE(i + 16) };
+      }
+    }
+    throw new Error('找不到 ZIP 的 End Of Central Directory，檔案可能不完整或已損毀');
+  }
+
+  function extractZip(zipPath, destDir) {
+    const buf = fs.readFileSync(zipPath);
+    const { entryCount, cdOffset } = readEocd(buf);
+    let offset = cdOffset;
+    for (let i = 0; i < entryCount; i++) {
+      if (buf.readUInt32LE(offset) !== 0x02014b50) {
+        throw new Error(`ZIP central directory 格式異常 (entry ${i})`);
+      }
+      const compressionMethod = buf.readUInt16LE(offset + 10);
+      const compressedSize = buf.readUInt32LE(offset + 20);
+      const nameLen = buf.readUInt16LE(offset + 28);
+      const extraLen = buf.readUInt16LE(offset + 30);
+      const commentLen = buf.readUInt16LE(offset + 32);
+      const localHeaderOffset = buf.readUInt32LE(offset + 42);
+      const nameStart = offset + 46;
+      const fileName = buf.toString('utf8', nameStart, nameStart + nameLen);
+
+      const localNameLen = buf.readUInt16LE(localHeaderOffset + 26);
+      const localExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+      const dataStart = localHeaderOffset + 30 + localNameLen + localExtraLen;
+      const compressedData = buf.subarray(dataStart, dataStart + compressedSize);
+
+      const targetPath = path.join(destDir, fileName);
+      if (fileName.endsWith('/')) {
+        fs.mkdirSync(targetPath, { recursive: true });
+      } else {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        const data = compressionMethod === 0 ? compressedData : zlib.inflateRawSync(compressedData);
+        fs.writeFileSync(targetPath, data);
+      }
+      offset = nameStart + nameLen + extraLen + commentLen;
+    }
+  }
+
+  const zipPath = findZipFile();
+  if (!zipPath) {
+    console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
+    return;
+  }
+  console.log(`[bootstrap-extract] 偵測到 src/ 缺失，正在從 ${path.basename(zipPath)} 還原專案檔案...`);
+  extractZip(zipPath, rootDir);
+  console.log('[bootstrap-extract] 還原完成。');
+})(__dirname);
+
 const { loadEnv } = require('./src/services/env');
 loadEnv();
 
