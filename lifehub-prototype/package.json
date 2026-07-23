@@ -1,0 +1,15 @@
+{
+  "name": "life-hub",
+  "version": "0.4.0",
+  "description": "個人化跨平台生活助理原型：股票法人動向、交通即時動態、旅遊行程規劃、日記、記帳",
+  "private": true,
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "DEBUG=true NODE_ENV=development node server.js"
+  },
+  "dependencies": {}
+}
