@@ -1,6 +1,6 @@
 const path = require('path');
 
-// ===== 自我更新：每次開機都從同目錄的 lifehub-prototype.zip 還原/覆蓋一次專案檔案 =====
+// ===== 自我更新：每次開機都從同目錄的 zip 還原/覆蓋一次專案檔案 =====
 // (常見情況：透過網頁手動上傳到 GitHub 時，瀏覽器沒有把子資料夾一起送出。)
 // 純粹用 Node.js 內建模組實作 (fs / zlib)，不依賴任何外部套件或系統指令，
 // 符合這個專案「零外部依賴」的原則。整段邏輯內嵌在 server.js 裡。
@@ -12,10 +12,18 @@ const path = require('path');
   const zlib = require('zlib');
 
   function findZipFile() {
-    const preferred = path.join(rootDir, 'lifehub-prototype.zip');
-    if (fs.existsSync(preferred)) return preferred;
-    const zipName = fs.readdirSync(rootDir).find((name) => name.toLowerCase().endsWith('.zip'));
-    return zipName ? path.join(rootDir, zipName) : null;
+    const zipNames = fs.readdirSync(rootDir).filter((name) => name.toLowerCase().endsWith('.zip'));
+    if (zipNames.length === 0) return null;
+    if (zipNames.length > 1) {
+      // 根目錄有一個以上的 zip 檔時，沒辦法安全地判斷哪個才是「最新」的
+      // (git checkout 後檔案的修改時間不可靠)，寧可不做事也不要猜錯、部署到舊版本。
+      console.error(
+        `[bootstrap-extract] 偵測到 ${zipNames.length} 個 zip 檔 (${zipNames.join(', ')})，` +
+          '為避免用錯版本，這次不會自動解壓縮。請確認專案根目錄只留「一個」zip 檔案。'
+      );
+      return null;
+    }
+    return path.join(rootDir, zipNames[0]);
   }
 
   function readEocd(buf) {
@@ -66,9 +74,9 @@ const path = require('path');
   if (!zipPath) {
     const srcDir = path.join(rootDir, 'src');
     if (!fs.existsSync(srcDir)) {
-      console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
+      console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到可用的 zip 可以還原。');
     }
-    return; // 沒有 zip：假設專案本身已經是完整的 (例如本機開發)，不用做任何事
+    return;
   }
   console.log(`[bootstrap-extract] 正在從 ${path.basename(zipPath)} 還原/更新專案檔案...`);
   extractZip(zipPath, rootDir);
@@ -82,8 +90,6 @@ const { createApp } = require('./src/mini-http');
 const logger = require('./src/services/logger');
 const { getDb } = require('./src/services/db');
 
-// 啟動時先初始化 DB + 套用 migrations，任何一步失敗就直接讓程式退出，
-// 避免「資料庫結構跟程式版本對不上」卻還繼續服務請求。
 getDb();
 
 const app = createApp();
