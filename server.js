@@ -1,15 +1,15 @@
 const path = require('path');
 
-// ===== 自我修復：如果缺少 src/ 資料夾，就從同目錄的 lifehub-prototype.zip 自動解壓縮 =====
+// ===== 自我更新：每次開機都從同目錄的 lifehub-prototype.zip 還原/覆蓋一次專案檔案 =====
 // (常見情況：透過網頁手動上傳到 GitHub 時，瀏覽器沒有把子資料夾一起送出。)
 // 純粹用 Node.js 內建模組實作 (fs / zlib)，不依賴任何外部套件或系統指令，
-// 符合這個專案「零外部依賴」的原則。整段邏輯內嵌在 server.js 裡，
-// 這樣只需要「這一個檔案 + 一個 zip」兩個東西，不用額外再上傳別的腳本檔。
+// 符合這個專案「零外部依賴」的原則。整段邏輯內嵌在 server.js 裡。
+// 刻意設計成「只要 zip 檔存在就一定執行」而不是只在缺檔案時才執行，
+// 這樣以後要更新畫面/功能，只需要換掉這個 zip 檔重新部署，
+// 不用再手動一個一個資料夾上傳、也不用再改 server.js。
 (function ensureExtracted(rootDir) {
   const fs = require('fs');
   const zlib = require('zlib');
-  const srcDir = path.join(rootDir, 'src');
-  if (fs.existsSync(srcDir)) return; // 已經是完整的專案，不用做任何事
 
   function findZipFile() {
     const preferred = path.join(rootDir, 'lifehub-prototype.zip');
@@ -64,10 +64,13 @@ const path = require('path');
 
   const zipPath = findZipFile();
   if (!zipPath) {
-    console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
-    return;
+    const srcDir = path.join(rootDir, 'src');
+    if (!fs.existsSync(srcDir)) {
+      console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
+    }
+    return; // 沒有 zip：假設專案本身已經是完整的 (例如本機開發)，不用做任何事
   }
-  console.log(`[bootstrap-extract] 偵測到 src/ 缺失，正在從 ${path.basename(zipPath)} 還原專案檔案...`);
+  console.log(`[bootstrap-extract] 正在從 ${path.basename(zipPath)} 還原/更新專案檔案...`);
   extractZip(zipPath, rootDir);
   console.log('[bootstrap-extract] 還原完成。');
 })(__dirname);
