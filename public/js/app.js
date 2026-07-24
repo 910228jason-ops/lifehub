@@ -562,70 +562,101 @@ async function loadStockCard(code, box) {
 }
 
 // ===================== 交通與旅遊 =====================
+const TRAVEL_SUB_TABS = [
+  { key: 'train', label: '🚄 台鐵 / 高鐵' },
+  { key: 'flight', label: '✈️ 機票' },
+  { key: 'hotel', label: '🏨 住宿' },
+  { key: 'itinerary', label: '🗺️ 行程規劃' },
+];
+let travelSubTab = 'train';
+
+function switchTravelSub(key) {
+  travelSubTab = key;
+  renderTravel();
+}
+
 function renderTravel() {
   const c = $('#tab-travel');
   c.innerHTML = '';
 
-  c.appendChild(el('div', { class: 'card' }, [
-    el('h3', {}, '台鐵 / 高鐵 時刻搜尋'),
-    el('p', { class: 'hint' }, '資料來源：交通部 TDX 運輸資料流通服務。僅提供時刻/誤點/票價區間查詢，實際訂票請至官方售票網站。'),
-    el('div', { class: 'form-row' }, [
-      el('select', { id: 'trainMode' }, [el('option', { value: 'tra' }, '台鐵 TRA'), el('option', { value: 'thsr' }, '高鐵 THSR')]),
-      el('input', { id: 'stationName', placeholder: '出發站，如 台北' }),
-      el('input', { id: 'stationTo', placeholder: '目的站，如 台中' }),
-      el('input', { id: 'trainDate', type: 'date', value: todayStr() }),
+  // 次分頁：把「火車 / 機票 / 住宿 / 行程規劃」分開，一次只看一個，不要全部塞在同一畫面
+  c.appendChild(el('div', { class: 'subnav' }, TRAVEL_SUB_TABS.map((t) =>
+    el('div', {
+      class: `subnav-item${travelSubTab === t.key ? ' active' : ''}`,
+      onclick: () => switchTravelSub(t.key),
+    }, t.label)
+  )));
+
+  const panel = (key, children) => el('div', { class: `subpanel${travelSubTab === key ? ' active' : ''}` }, children);
+
+  c.appendChild(panel('train', [
+    el('div', { class: 'card' }, [
+      el('h3', {}, '台鐵 / 高鐵 時刻搜尋'),
+      el('p', { class: 'hint' }, '資料來源：交通部 TDX 運輸資料流通服務。僅提供時刻/誤點/票價區間查詢，實際訂票請至官方售票網站。'),
+      el('div', { class: 'form-row' }, [
+        el('select', { id: 'trainMode' }, [el('option', { value: 'tra' }, '台鐵 TRA'), el('option', { value: 'thsr' }, '高鐵 THSR')]),
+        el('input', { id: 'stationName', placeholder: '出發站，如 台北' }),
+        el('input', { id: 'stationTo', placeholder: '目的站，如 台中' }),
+        el('input', { id: 'trainDate', type: 'date', value: todayStr() }),
+      ]),
+      el('div', { class: 'form-row' }, [
+        el('input', { id: 'timeFrom', type: 'time', value: '06:00' }),
+        el('span', { style: 'align-self:center;color:var(--text-muted)' }, '～'),
+        el('input', { id: 'timeTo', type: 'time', value: '22:00' }),
+        el('input', { id: 'trainNoSearch', placeholder: '搜尋車次號碼 (選填)' }),
+        el('button', { class: 'btn btn-primary', onclick: searchTrain }, '查詢'),
+      ]),
+      el('div', { id: 'trainResult' }),
     ]),
-    el('div', { class: 'form-row' }, [
-      el('input', { id: 'timeFrom', type: 'time', value: '06:00' }),
-      el('span', { style: 'align-self:center;color:var(--text-muted)' }, '～'),
-      el('input', { id: 'timeTo', type: 'time', value: '22:00' }),
-      el('input', { id: 'trainNoSearch', placeholder: '搜尋車次號碼 (選填)' }),
-      el('button', { class: 'btn btn-primary', onclick: searchTrain }, '查詢'),
+    el('div', { class: 'card' }, [
+      el('h3', {}, '⭐ 我的收藏車次'),
+      el('p', { class: 'hint' }, '收藏常搭的車次，下次不用重新查詢。'),
+      el('div', { id: 'favoriteTrainsArea' }),
     ]),
-    el('div', { id: 'trainResult' }),
   ]));
 
-  c.appendChild(el('div', { class: 'card' }, [
-    el('h3', {}, '⭐ 我的收藏車次'),
-    el('p', { class: 'hint' }, '收藏常搭的車次，下次不用重新查詢。'),
-    el('div', { id: 'favoriteTrainsArea' }),
-  ]));
-  loadFavoriteTrains();
-
-  c.appendChild(el('div', { class: 'card' }, [
-    el('h3', {}, '機票 — 各家航空公司/比價網站'),
-    el('p', { class: 'hint' }, '目前沒有免費即時比價 API，這裡改用「深連結」方式：點下去會直接跳到該網站，並幫你帶入出發地/目的地/日期。真正一頁比全部價格需要另外申請商業合作 API。'),
-    el('div', { class: 'form-row' }, [
-      el('input', { id: 'flyFrom', placeholder: '出發地，如 台北' }),
-      el('input', { id: 'flyTo', placeholder: '目的地，如 大阪' }),
-      el('input', { id: 'flyDate', type: 'date' }),
-      el('button', { class: 'btn btn-primary', onclick: searchFlightProviders }, '列出各家連結' ),
+  c.appendChild(panel('flight', [
+    el('div', { class: 'card' }, [
+      el('h3', {}, '機票 — 各家航空公司/比價網站'),
+      el('p', { class: 'hint' }, '目前沒有免費即時比價 API，這裡改用「深連結」方式：點下去會直接跳到該網站，並幫你帶入出發地/目的地/日期。真正一頁比全部價格需要另外申請商業合作 API。'),
+      el('div', { class: 'form-row' }, [
+        el('input', { id: 'flyFrom', placeholder: '出發地，如 台北' }),
+        el('input', { id: 'flyTo', placeholder: '目的地，如 大阪' }),
+        el('input', { id: 'flyDate', type: 'date' }),
+        el('button', { class: 'btn btn-primary', onclick: searchFlightProviders }, '列出各家連結' ),
+      ]),
+      el('div', { id: 'flightResult' }),
     ]),
-    el('div', { id: 'flightResult' }),
   ]));
 
-  c.appendChild(el('div', { class: 'card' }, [
-    el('h3', {}, '住宿 — 各家訂房網站'),
-    el('div', { class: 'form-row' }, [
-      el('input', { id: 'hotelCity', placeholder: '城市，如 大阪' }),
-      el('input', { id: 'hotelCheckin', type: 'date' }),
-      el('input', { id: 'hotelCheckout', type: 'date' }),
-      el('button', { class: 'btn btn-primary', onclick: searchHotelProviders }, '列出各家連結'),
+  c.appendChild(panel('hotel', [
+    el('div', { class: 'card' }, [
+      el('h3', {}, '住宿 — 各家訂房網站'),
+      el('div', { class: 'form-row' }, [
+        el('input', { id: 'hotelCity', placeholder: '城市，如 大阪' }),
+        el('input', { id: 'hotelCheckin', type: 'date' }),
+        el('input', { id: 'hotelCheckout', type: 'date' }),
+        el('button', { class: 'btn btn-primary', onclick: searchHotelProviders }, '列出各家連結'),
+      ]),
+      el('div', { id: 'hotelResult' }),
     ]),
-    el('div', { id: 'hotelResult' }),
   ]));
 
-  c.appendChild(el('div', { class: 'card' }, [
-    el('h3', {}, '智慧行程規劃'),
-    el('p', { class: 'hint' }, '輸入出發地、目的地與天數，產生行程草案；若目的地或出發地是已收錄城市 (目前：台中、新北)，會額外附上精選景點/美食/休閒推薦。'),
-    el('div', { class: 'form-row' }, [
-      el('input', { id: 'tripFrom', placeholder: '出發地' }),
-      el('input', { id: 'tripTo', placeholder: '目的地' }),
-      el('input', { id: 'tripDays', type: 'number', value: 3, min: 1, max: 14 }),
-      el('button', { class: 'btn btn-primary', onclick: generateItinerary }, '產生行程'),
+  c.appendChild(panel('itinerary', [
+    el('div', { class: 'card' }, [
+      el('h3', {}, '智慧行程規劃'),
+      el('p', { class: 'hint' }, '輸入出發地、目的地與天數，產生行程草案；若目的地或出發地是已收錄城市 (目前：台中、新北)，會額外附上精選景點/美食/休閒推薦。'),
+      el('div', { class: 'form-row' }, [
+        el('input', { id: 'tripFrom', placeholder: '出發地' }),
+        el('input', { id: 'tripTo', placeholder: '目的地' }),
+        el('input', { id: 'tripDays', type: 'number', value: 3, min: 1, max: 14 }),
+        el('button', { class: 'btn btn-primary', onclick: generateItinerary }, '產生行程'),
+      ]),
+      el('div', { id: 'itineraryResult' }),
     ]),
-    el('div', { id: 'itineraryResult' }),
   ]));
+
+  if (travelSubTab === 'train') loadFavoriteTrains();
 }
 
 const PROVIDER_COLORS = ['--series-blue', '--series-orange', '--series-aqua', '--series-violet', '--series-magenta', '--series-yellow'];
