@@ -1,6 +1,6 @@
 const path = require('path');
 
-// ===== 自我更新：每次開機都從同目錄的 zip 還原/覆蓋一次專案檔案 =====
+// ===== 自我更新：每次開機都從同目錄的 lifehub-prototype.zip 還原/覆蓋一次專案檔案 =====
 // (常見情況：透過網頁手動上傳到 GitHub 時，瀏覽器沒有把子資料夾一起送出。)
 // 純粹用 Node.js 內建模組實作 (fs / zlib)，不依賴任何外部套件或系統指令，
 // 符合這個專案「零外部依賴」的原則。整段邏輯內嵌在 server.js 裡。
@@ -74,9 +74,9 @@ const path = require('path');
   if (!zipPath) {
     const srcDir = path.join(rootDir, 'src');
     if (!fs.existsSync(srcDir)) {
-      console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到可用的 zip 可以還原。');
+      console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
     }
-    return;
+    return; // 沒有 zip：假設專案本身已經是完整的 (例如本機開發)，不用做任何事
   }
   console.log(`[bootstrap-extract] 正在從 ${path.basename(zipPath)} 還原/更新專案檔案...`);
   extractZip(zipPath, rootDir);
@@ -90,7 +90,21 @@ const { createApp } = require('./src/mini-http');
 const logger = require('./src/services/logger');
 const { getDb } = require('./src/services/db');
 
+// 啟動時先初始化 DB + 套用 migrations，任何一步失敗就直接讓程式退出，
+// 避免「資料庫結構跟程式版本對不上」卻還繼續服務請求。
 getDb();
+
+// 開機時印出 AI 助理目前偵測到哪個供應商 (不印出金鑰內容，只印出「有沒有偵測到」+ 長度)，
+// 方便直接從部署 log 確認 GEMINI_API_KEY / ANTHROPIC_API_KEY 有沒有真的被容器讀到，
+// 不用等使用者實際點進 AI 助理頁面聊天才發現「金鑰設定了卻沒作用」。
+const assistantService = require('./src/services/assistant');
+const health = assistantService.healthcheck();
+if (health.ok) {
+  const keyLen = (process.env.GEMINI_API_KEY || process.env.ANTHROPIC_API_KEY || '').length;
+  logger.info(`[assistant] 已偵測到 AI 供應商: ${health.provider} (金鑰長度: ${keyLen})`);
+} else {
+  logger.info(`[assistant] 尚未偵測到 AI 供應商設定 (${health.reason})`);
+}
 
 const app = createApp();
 
@@ -108,6 +122,7 @@ app.mount('/api/finance', require('./src/routes/finance'));
 app.mount('/api/travel', require('./src/routes/travel'));
 app.mount('/api/calendar', require('./src/routes/calendar'));
 app.mount('/api/assistant', require('./src/routes/assistant'));
+app.mount('/api/mood', require('./src/routes/mood'));
 app.mount('/api', require('./src/routes/debug'));
 
 app.setStatic(path.join(__dirname, 'public'));
