@@ -117,6 +117,10 @@ app.mount('/api/calendar', require('./src/routes/calendar'));
 app.mount('/api/assistant', require('./src/routes/assistant'));
 app.mount('/api/mood', require('./src/routes/mood'));
 app.mount('/api/export', require('./src/routes/export'));
+app.mount('/api/health-track', require('./src/routes/health'));
+app.mount('/api/bills', require('./src/routes/bills'));
+app.mount('/api/relationships', require('./src/routes/relationships'));
+app.mount('/api/tasks', require('./src/routes/tasks'));
 app.mount('/api', require('./src/routes/debug'));
 
 app.setStatic(path.join(__dirname, 'public'));
