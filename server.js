@@ -15,8 +15,6 @@ const path = require('path');
     const zipNames = fs.readdirSync(rootDir).filter((name) => name.toLowerCase().endsWith('.zip'));
     if (zipNames.length === 0) return null;
     if (zipNames.length > 1) {
-      // 根目錄有一個以上的 zip 檔時，沒辦法安全地判斷哪個才是「最新」的
-      // (git checkout 後檔案的修改時間不可靠)，寧可不做事也不要猜錯、部署到舊版本。
       console.error(
         `[bootstrap-extract] 偵測到 ${zipNames.length} 個 zip 檔 (${zipNames.join(', ')})，` +
           '為避免用錯版本，這次不會自動解壓縮。請確認專案根目錄只留「一個」zip 檔案。'
@@ -76,7 +74,7 @@ const path = require('path');
     if (!fs.existsSync(srcDir)) {
       console.error('[bootstrap-extract] 缺少 src/ 資料夾，且找不到 lifehub-prototype.zip 可以還原。');
     }
-    return; // 沒有 zip：假設專案本身已經是完整的 (例如本機開發)，不用做任何事
+    return;
   }
   console.log(`[bootstrap-extract] 正在從 ${path.basename(zipPath)} 還原/更新專案檔案...`);
   extractZip(zipPath, rootDir);
@@ -90,13 +88,8 @@ const { createApp } = require('./src/mini-http');
 const logger = require('./src/services/logger');
 const { getDb } = require('./src/services/db');
 
-// 啟動時先初始化 DB + 套用 migrations，任何一步失敗就直接讓程式退出，
-// 避免「資料庫結構跟程式版本對不上」卻還繼續服務請求。
 getDb();
 
-// 開機時印出 AI 助理目前偵測到哪個供應商 (不印出金鑰內容，只印出「有沒有偵測到」+ 長度)，
-// 方便直接從部署 log 確認 GEMINI_API_KEY / ANTHROPIC_API_KEY 有沒有真的被容器讀到，
-// 不用等使用者實際點進 AI 助理頁面聊天才發現「金鑰設定了卻沒作用」。
 const assistantService = require('./src/services/assistant');
 const health = assistantService.healthcheck();
 if (health.ok) {
@@ -123,6 +116,7 @@ app.mount('/api/travel', require('./src/routes/travel'));
 app.mount('/api/calendar', require('./src/routes/calendar'));
 app.mount('/api/assistant', require('./src/routes/assistant'));
 app.mount('/api/mood', require('./src/routes/mood'));
+app.mount('/api/export', require('./src/routes/export'));
 app.mount('/api', require('./src/routes/debug'));
 
 app.setStatic(path.join(__dirname, 'public'));
