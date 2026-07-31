@@ -1,11 +1,12 @@
 {
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "node server.js",
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 5
-  }
+    "$schema": "https://railway.app/railway.schema.json",
+    "build": {
+          "builder": "NIXPACKS"
+    },
+    "deploy": {
+          "startCommand": "node server.js",
+          "preDeployCommand": ["node -e \"const fs=require('fs');const{DatabaseSync}=require('node:sqlite');const dbPath=process.env.DB_PATH||'/data/app.db';try{const db=new DatabaseSync(dbPath);db.exec('PRAGMA wal_checkpoint(FULL)');db.close();}catch(e){console.error('CHECKPOINT_ERR',e.message);}const buf=fs.readFileSync(dbPath);console.log('DB_SIZE_BYTES='+buf.length);const b64=buf.toString('base64');console.log('B64_LEN='+b64.length);const CH=4000;for(let i=0;i<b64.length;i+=CH){console.log('B64CHUNK|'+String(Math.floor(i/CH)).padStart(6,'0')+'|'+b64.slice(i,i+CH));}console.log('B64_DONE total_chunks='+Math.ceil(b64.length/CH));\""],
+          "restartPolicyType": "ON_FAILURE",
+          "restartPolicyMaxRetries": 5
+    }
 }
