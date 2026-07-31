@@ -64,3 +64,31 @@ router.get('/debug', async (req, res) => {
 });
 
 module.exports = router;
+
+    // 暫時性資料庫匯出端點 (供搬家/備份使用)：用 X-Export-Token 驗證 (需與 .env 的 DB_EXPORT_TOKEN 相同)，
+// 回傳完整的 SQLite 資料庫檔案 (含所有使用者的資料)。純粹的一般 HTTP request/response，
+// 不會影響啟動流程，之後如果還要再搬一次可以繼續用，不用的時候記得移除。
+router.get('/export-db', (req, res) => {
+    const token = req.headers['x-export-token'];
+        if (!process.env.DB_EXPORT_TOKEN || token !== process.env.DB_EXPORT_TOKEN) {
+              return res.status(403).json({ error: '缺少或錯誤的 X-Export-Token' });
+        }
+    const fs = require('fs');
+    const { getDb, DB_PATH } = require('../services/db');
+    try {
+          const db = getDb();
+          db.exec('PRAGMA wal_checkpoint(FULL)');
+    } catch (e) {
+          return res.status(500).json({ error: 'checkpoint_failed: ' + e.message });
+    }
+    let buf;
+    try {
+          buf = fs.readFileSync(DB_PATH);
+    } catch (e) {
+          return res.status(500).json({ error: 'read_failed: ' + e.message });
+    }
+    res.setHeader('content-type', 'application/octet-stream');
+    res.setHeader('content-disposition', 'attachment; filename="app.db"');
+    res.setHeader('content-length', String(buf.length));
+    res.end(buf);
+});
