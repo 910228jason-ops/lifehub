@@ -1,7 +1,7 @@
 # LifeHub 交接說明 (給接手的 AI 助理或開發者)
 
 > 換了 AI 工具、或開一個新對話時，請先讀完這份再動手。這份文件記錄的是**專案怎麼運作、
-> 怎麼發版、已經定案的設計規則**。每次發新版時一起更新 (最後更新：v0.87.0)。
+> 怎麼發版、已經定案的設計規則**。每次發新版時一起更新 (最後更新：v0.88.0)。
 >
 > ⚠️ 這個 repo 是**公開的**：這份文件、程式碼、zip 都看得到。不要把密碼、金鑰、`.env`、
 > 資料庫或任何使用者資料放進 repo。
@@ -32,6 +32,11 @@ LifeHub：繁體中文的個人生活助理網頁 App (PWA)，主要在**手機*
   cd ~/lifehub && git pull && sudo systemctl restart lifehub
   ```
 - 確認：打開 `/api/health`，看 `version` 是否為新版本號。
+- **自動退回 (v0.88)**：bootstrap 會把被覆蓋的舊檔備份到 `.bootstrap/previous/`，狀態在
+  `.bootstrap/state.json` (`status`: trying/ok/bad)。新版啟動 30 秒後自我健康檢查通過才算 ok；
+  連續 2 次開機都沒到 ok，第 3 次開機自動還原上一版並把該 zip 標記 bad (之後不再解壓它)。
+  看到 `/api/health` 版本號沒變時，先看 `sudo journalctl -u lifehub -n 100` 和 state.json。
+  要強制重試同一個 zip：刪掉 `.bootstrap/state.json` 再重啟。`.bootstrap/` 不進 git。
 
 ### 沒有 GitHub token 時怎麼上傳 (只用瀏覽器)
 使用者偏好**不要讓 AI 操控他的電腦**，但可以用 AI 內建、已登入 GitHub 的瀏覽器。做法：
@@ -84,6 +89,10 @@ LifeHub：繁體中文的個人生活助理網頁 App (PWA)，主要在**手機*
   不要跟標題擠同一列；行內小按鈕用 `font-size:11px` 這類寫法時會自動不套 44px 最小高度。
 - **時間一律用台灣時間 (UTC+8)** 判斷，不要依賴伺服器時區 (GCP VM 預設 UTC)。
 
+- **離線 (v0.88)**：`public/sw.js` 對 App 外殼和 GET /api 採「網路優先、4 秒逾時才用快取」。
+  改 sw.js 的快取策略時要遞增 `SHELL_CACHE`/`API_CACHE` 名稱；新增含敏感資料或不該離線顯示的
+  API 時，加進 `isCacheableApi` 的排除清單。登出/登入會呼叫 `clearOfflineApiCache()`。
+
 ## 6. 資料與備份
 
 - 資料庫：`DB_PATH` (預設 `data/app.db`)。
@@ -100,7 +109,6 @@ LifeHub：繁體中文的個人生活助理網頁 App (PWA)，主要在**手機*
 
 ## 7. 已知待辦 / 下一步候選
 
-- 更新失敗時自動退回上一版 (bootstrap 覆蓋前先備份舊檔)。
-- 訊號差也能打開 (Service Worker 快取 app shell)。
+- 共用購物清單 (家人可同時勾選)。
 - 每週一次只講事實的被動摘要 (推播預設關閉)。
-- 伺服器端很多 `todayStr()` 用的是 UTC 日期 (台灣早上 8 點前會算成前一天)，可以統一改成台灣時間。
+- 伺服器端很多 `todayStr()` 用的是 UTC 日期 (帳單的 currentPeriod 已在 v0.88 改成台灣時間) (台灣早上 8 點前會算成前一天)，可以統一改成台灣時間。
